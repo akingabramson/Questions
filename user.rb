@@ -1,6 +1,7 @@
 class User
 
-  attr_reader :id, :fname, :lname
+  attr_accessor :fname, :lname
+  attr_reader :id
 
   def initialize(attribute_hash)
     @id = attribute_hash["id"]
@@ -66,5 +67,27 @@ class User
       0
     end
 
+  end
+
+  def save
+    unless @id
+      query = <<-SQL
+        INSERT INTO users(fname, lname)
+        VALUES (?, ?);
+      SQL
+
+      QuestionsDatabase.instance.execute(query, @fname, @lname)
+      @id = QuestionsDatabase.last_insert_row_id
+    else
+      query = <<-SQL
+        UPDATE users
+        SET fname = ?,
+            lname = ?
+        WHERE id = ?;
+      SQL
+
+      QuestionsDatabase.instance.execute(query, @fname, @lname, @id)
+
+    end
   end
 end

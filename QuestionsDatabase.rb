@@ -95,7 +95,6 @@ class Question_follower
 
 end
 
-
 class Question_like
   attr_reader :id, :liker_id, :liked_question_id
 
@@ -179,5 +178,11 @@ class Question_like
 
 end
 
-a = User.find_by_id(2)
-p a.average_karma
+
+a = Question.find_by_id(1)
+p a.body
+a.body = "DO THE CHICKENS HAVE LARGE TALONS?"
+a.save
+
+a = Question.find_by_id(1)
+p a.body

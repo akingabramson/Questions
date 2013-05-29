@@ -1,5 +1,6 @@
 class Reply
-  attr_reader :id, :replier_id, :parent_question_id, :parent_reply_id, :reply_body
+  attr_accessor :replier_id, :parent_question_id, :parent_reply_id, :reply_body
+  attr_reader :id
 
   def initialize(attribute_hash)
     @id = attribute_hash["id"]
@@ -76,6 +77,31 @@ class Reply
       child_replies << Reply.new(attr_hash)
     end
     child_replies
+  end
+
+  def save
+    unless @id
+      query = <<-SQL
+        INSERT INTO replies(replier_id, parent_question_id, parent_reply_id, reply_body)
+        VALUES (?, ?, ?, ?);
+      SQL
+
+      QuestionsDatabase.instance.execute(query, @replier_id, @parent_question_id, @parent_reply_id, @reply_body)
+      @id = QuestionsDatabase.last_insert_row_id
+
+    else
+      query = <<-SQL
+        UPDATE replies
+        SET replier_id = ?,
+            parent_question_id = ?,
+            parent_reply_id = ?,
+            reply_body = ?
+        WHERE id = ?;
+      SQL
+
+      QuestionsDatabase.instance.execute(query, @replier_id, @parent_question_id, @parent_reply_id, @reply_body, @id)
+
+    end
   end
 
 end

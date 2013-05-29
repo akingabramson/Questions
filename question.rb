@@ -1,5 +1,6 @@
 class Question
-  attr_reader :id, :title, :body, :author
+  attr_accessor :title, :body, :author
+  attr_reader :id
 
   def initialize(attribute_hash)
     @id = attribute_hash["id"]
@@ -62,4 +63,28 @@ class Question
   def num_likes
     Question_like.num_likes_for_question_id(@id)
   end
+
+  def save
+    unless @id
+      query = <<-SQL
+        INSERT INTO questions(title, body, author)
+        VALUES (?, ?, ?);
+      SQL
+
+      QuestionsDatabase.instance.execute(query, @title, @body, @author)
+      @id = QuestionsDatabase.last_insert_row_id
+    else
+      query = <<-SQL
+        UPDATE questions
+        SET title = ?,
+            body = ?,
+            author = ?
+        WHERE id = ?;
+      SQL
+
+      QuestionsDatabase.instance.execute(query, @title, @body, @author, @id)
+
+    end
+  end
+
 end
