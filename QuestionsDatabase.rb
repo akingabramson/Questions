@@ -1,5 +1,8 @@
 require 'singleton'
 require 'sqlite3'
+require_relative 'reply.rb'
+require_relative 'user.rb'
+require_relative 'question.rb'
 
 class QuestionsDatabase < SQLite3::Database
   include Singleton
@@ -13,90 +16,8 @@ class QuestionsDatabase < SQLite3::Database
 end
 
 
-class User
-
-  attr_reader :id, :fname, :lname
-
-  def initialize(attribute_hash)
-    @id = attribute_hash["id"]
-    @fname = attribute_hash["fname"]
-    @lname = attribute_hash[":lname"]
-  end
-
-  def self.find_by_id(u_id)
-    query = <<-SQL
-      SELECT *
-      FROM users
-      WHERE id = ?;
-    SQL
-
-    attr_hash = QuestionsDatabase.instance.execute(query, u_id)
-    User.new(attr_hash.first)
-
-  end
-
-  def self.find_by_name(fname, lname)
-    query = <<-SQL
-      SELECT *
-      FROM users
-      WHERE fname = ?
-      AND lname = ?;
-    SQL
-
-    attr_hash = QuestionsDatabase.instance.execute(query, fname, lname)
-    User.new(attr_hash.first)
-  end
-
-  def authored_questions
-    Question.find_by_author_id(@id)
-  end
-
-  def authored_replies
-    Reply.find_by_user_id(@id)
-  end
 
 
-end
-
-class Question
-  attr_reader :id, :title, :body, :author
-
-  def initialize(attribute_hash)
-    @id = attribute_hash["id"]
-    @title = attribute_hash["title"]
-    @body = attribute_hash["body"]
-    @author = attribute_hash["author"]
-  end
-
-  def self.find_by_id(q_id)
-    query = <<-SQL
-      SELECT *
-      FROM questions
-      WHERE id = ?;
-    SQL
-
-    attr_hash = QuestionsDatabase.instance.execute(query, q_id)
-    Question.new(attr_hash.first)
-  end
-
-  def self.find_by_author_id(id)
-    query = <<-SQL
-      SELECT *
-      FROM questions
-      WHERE author = ?;
-    SQL
-
-    questions = []
-
-    QuestionsDatabase.instance.execute(query, id).each do |attr_hash|
-      questions << Reply.new(attr_hash)
-    end
-
-    questions
-  end
-
-
-end
 
 class Question_follower
   attr_reader :follower_id, :question_id
@@ -110,53 +31,70 @@ class Question_follower
     query = <<-SQL
       SELECT  *
       FROM question_followers
-      WHERE id = ?;
+      WHERE question_id = ?;
     SQL
 
     attr_hash = QuestionsDatabase.instance.execute(query, qf_id)
     Question_follower.new(attr_hash.first)
   end
 
-end
-
-class Reply
-  attr_reader :id, :questioner_id, :parent_question_id, :parent_reply_id, :reply_body
-
-  def initialize(attribute_hash)
-    @id = attribute_hash[:id]
-    @questioner_id = attribute_hash["questioner_id"]
-    @parent_question_id = attribute_hash["parent_question_id"]
-    @parent_reply_id = attribute_hash["parent_reply_id"]
-    @reply_body = attribute_hash["reply_body"]
-  end
-
-  def self.find_by_id(r_id)
+  def self.followers_for_question(q_id)
     query = <<-SQL
-      SELECT *
-      FROM replies
-      WHERE id = ?;
+      SELECT u.id
+      FROM question_followers q
+      JOIN users u
+      ON u.id = q.follower_id
+      WHERE q.question_id = ?;
     SQL
 
-    attr_hash = QuestionsDatabase.instance.execute(query, r_id)
-    Reply.new(attr_hash.first)
-  end
+    followers = []
 
-  def self.find_by_user_id(u_id)
-    query = <<-SQL
-    SELECT *
-    FROM replies
-    WHERE replier_id = ?;
-    SQL
-
-    replies = []
-    QuestionsDatabase.instance.execute(query, u_id).each do |attr_hash|
-      replies << Reply.new(attr_hash)
+    QuestionsDatabase.instance.execute(query, q_id).each do |attr_hash|
+      followers << User.find_by_id(attr_hash["id"])
     end
 
-    replies
+    followers
   end
 
+  def self.followed_question_for_user_id(u_id)
+    query = <<-SQL
+      SELECT q.id
+      FROM questions q
+      JOIN question_followers f
+      ON q.id = f.question_id
+      WHERE f.follower_id = ?;
+    SQL
+
+    followed_questions = []
+
+    QuestionsDatabase.instance.execute(query, u_id).each do |attr_hash|
+      followed_questions << Question.find_by_id(attr_hash["id"])
+    end
+
+    followed_questions
+  end
+
+  def self.most_followed_questions(n)
+    query = <<-SQL
+      SELECT question_id, COUNT(follower_id) AS f_count
+      FROM question_followers
+      GROUP BY question_id
+      ORDER BY COUNT(follower_id) DESC limit ?;
+    SQL
+
+    most_followed = []
+
+    QuestionsDatabase.instance.execute(query, n).each do |attr_hash|
+      most_followed << Question.find_by_id(attr_hash["question_id"])
+    end
+
+    most_followed
+  end
+
+
+
 end
+
 
 class Question_like
   attr_reader :id, :liker_id, :liked_question_id
@@ -178,7 +116,68 @@ class Question_like
     Question_like.new(attr_hash.first)
   end
 
+  def self.likers_for_question_id(q_id)
+    query = <<-SQL
+      SELECT liked_question_id, liker_id
+      FROM question_likes
+      WHERE liked_question_id = ?;
+    SQL
+
+    likers = []
+
+    QuestionsDatabase.instance.execute(query, q_id).each do |attr_hash|
+      likers << User.find_by_id(attr_hash["liker_id"])
+    end
+
+    likers
+  end
+
+  def self.liked_questions_for_user_id(u_id)
+    query = <<-SQL
+      SELECT liked_question_id, liker_id
+      FROM question_likes
+      WHERE liker_id = ?;
+    SQL
+
+    liked_qs = []
+
+    QuestionsDatabase.instance.execute(query, u_id).each do |attr_hash|
+      liked_qs << Question.find_by_id(attr_hash["liked_question_id"])
+    end
+
+    liked_qs
+  end
+
+  def self.num_likes_for_question_id(q_id)
+    query = <<-SQL
+      SELECT liked_question_id, COUNT(liker_id) AS likes
+      FROM question_likes
+      WHERE liked_question_id = ?
+      GROUP BY liked_question_id;
+    SQL
+
+    qid_and_count_hash = QuestionsDatabase.instance.execute(query, q_id).first
+    qid_and_count_hash["likes"]
+
+  end
+
+  def self.most_liked_questions(n)
+    query = <<-SQL
+      SELECT liked_question_id, COUNT(*) AS l_count
+      FROM question_likes
+      GROUP BY liked_question_id
+      ORDER BY COUNT(*) DESC LIMIT ?;
+    SQL
+
+    most_liked = []
+    QuestionsDatabase.instance.execute(query, n).each do |attr_hash|
+      most_liked << Question.find_by_id(attr_hash["liked_question_id"])
+    end
+
+    most_liked
+  end
+
 end
 
 a = User.find_by_id(2)
-p a.authored_replies
+p a.average_karma

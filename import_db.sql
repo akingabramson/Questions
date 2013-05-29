@@ -52,7 +52,9 @@ VALUES ('Aaron', 'Rama'),
 INSERT INTO questions(title, body, author)
 VALUES ('Why don"t birds get electrocuted on telephone wires?',
 'self explanatory', 2),
-('Who am I?', 'Aaron Rama', 2);
+('Who am I?', 'Aaron Rama', 2),
+('What is this?', 'Aaron Rama', 2),
+('Where is this?', 'here', 3);
 
 INSERT INTO question_followers(follower_id, question_id)
 VALUES (1, 2),
@@ -66,7 +68,11 @@ VALUES (2, 1, NULL, 'I respectfully disagree'),
 
 INSERT INTO question_likes(liker_id, liked_question_id)
 VALUES (3, 1),
-(2, 1);
+(2, 1),
+(3, 2),
+(1, 2),
+(1, 1),
+(1, 4);
 
 
 
